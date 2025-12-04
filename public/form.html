@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <title>Анкета користувача</title>
+  <style>
+    :root {
+      --bg: #f4f6fb;
+      --card: #ffffff;
+      --primary: #0d6efd;
+      --primary-dark: #0b5ed7;
+      --border: #d8dce3;
+      --text: #1a1d2a;
+      --muted: #6b7280;
+      --success: #14a44d;
+      --error: #b3261e;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; margin: 0; background: var(--bg); color: var(--text); }
+    header { background: var(--card); padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 10px rgba(0,0,0,0.04); position: sticky; top: 0; }
+    header .brand { font-weight: 700; letter-spacing: 0.4px; }
+    header nav a { color: var(--primary); text-decoration: none; font-weight: 600; margin-left: 12px; }
+    main { max-width: 960px; margin: 32px auto 48px; padding: 0 16px; }
+    .card { background: var(--card); border-radius: 12px; padding: 24px; box-shadow: 0 8px 30px rgba(17,24,39,0.08); }
+    h1 { margin-top: 0; margin-bottom: 8px; }
+    p.lead { margin-top: 0; color: var(--muted); }
+    form { margin-top: 16px; display: grid; gap: 12px; }
+    label { font-weight: 600; display: block; margin-bottom: 6px; }
+    input, textarea, button { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--border); font-size: 15px; transition: border-color .2s ease, box-shadow .2s ease; }
+    input:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(13,110,253,0.15); }
+    textarea { min-height: 110px; resize: vertical; }
+    button { cursor: pointer; background: var(--primary); color: #fff; border: none; font-weight: 700; letter-spacing: 0.2px; }
+    button:hover { background: var(--primary-dark); }
+    .two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+    .message { padding: 12px 14px; border-radius: 10px; font-weight: 600; }
+    .message.error { background: rgba(179,38,30,0.08); color: var(--error); border: 1px solid rgba(179,38,30,0.2); }
+    .message.success { background: rgba(20,164,77,0.08); color: var(--success); border: 1px solid rgba(20,164,77,0.2); }
+    .hint { color: var(--muted); font-size: 14px; margin-top: -6px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">Аналітика користувачів</div>
+    <nav>
+      <a href="/dashboard">Дашборд</a>
+      <a href="/form.html">Форма</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="card">
+      <h1>Анкета користувача</h1>
+      <p class="lead">Заповніть форму. Дані будуть збережені у сесії та використані для дашборду.</p>
+
+      <div id="messageBox"></div>
+
+      <form id="dataForm" novalidate>
+        <div class="two-col">
+          <div>
+            <label for="name">Імʼя</label>
+            <input type="text" id="name" name="name" placeholder="Введіть імʼя" minlength="2" required>
+          </div>
+          <div>
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" placeholder="name@email.com" required>
+          </div>
+        </div>
+        <div class="two-col">
+          <div>
+            <label for="age">Вік</label>
+            <input type="number" id="age" name="age" placeholder="18" min="1" required>
+          </div>
+          <div>
+            <label for="comment">Коментар</label>
+            <textarea id="comment" name="comment" placeholder="Коротко опишіть свій запит" minlength="5" required></textarea>
+          </div>
+        </div>
+        <p class="hint">Ми логуюмо події (перегляд сторінки, відправлення форми) у форматі JSON для подальшої аналітики.</p>
+        <button type="submit">Надіслати</button>
+      </form>
+    </div>
+  </main>
+
+  <script>
+    const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+    const form = document.getElementById('dataForm');
+    const messageBox = document.getElementById('messageBox');
+
+    function showMessage(type, text) {
+      if (!text) {
+        messageBox.innerHTML = '';
+        return;
+      }
+      messageBox.innerHTML = `<div class="message ${type}">${text}</div>`;
+    }
+
+    function readFormData(target) {
+      return Object.fromEntries(new FormData(target).entries());
+    }
+
+    function validateForm(data) {
+      const messages = [];
+      data.name = (data.name || '').trim();
+      data.email = (data.email || '').trim();
+      data.comment = (data.comment || '').trim();
+
+      if (!data.name || data.name.length < 2) messages.push('Імʼя повинно містити щонайменше 2 символи.');
+
+      const emailField = form.elements.email;
+      emailField.value = data.email;
+      const emailValid = EMAIL_REGEX.test(data.email) && emailField.checkValidity();
+      if (!emailValid) messages.push('Невірний формат email.');
+
+      const age = parseInt(data.age, 10);
+      if (Number.isNaN(age) || age < 1) messages.push('Вік має бути числом не меншим за 1.');
+      if (!data.comment || data.comment.length < 5) messages.push('Коментар повинен містити щонайменше 5 символів.');
+
+      data.age = age;
+      return messages;
+    }
+
+    async function sendLog(action, meta = {}) {
+      try {
+        await fetch('/api/log', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, meta }),
+        });
+      } catch (err) {
+        console.warn('Не вдалося надіслати лог:', err);
+      }
+    }
+
+    function saveToLocalStorage(data) {
+      localStorage.setItem('user', JSON.stringify(data));
+    }
+
+    function restoreFromLocalStorage() {
+      const raw = localStorage.getItem('user');
+      if (!raw) return;
+      try {
+        const saved = JSON.parse(raw);
+        Object.entries(saved).forEach(([key, value]) => {
+          if (form.elements[key]) form.elements[key].value = value;
+        });
+      } catch (err) {
+        console.warn('Не вдалося прочитати локальні дані', err);
+      }
+    }
+
+    form.addEventListener('input', () => {
+      showMessage('', '');
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      showMessage('', '');
+
+      const data = readFormData(e.target);
+      const errors = validateForm(data);
+      if (errors.length) {
+        showMessage('error', errors.join(' '));
+        sendLog('form_validation_failed_front', { errors });
+        return;
+      }
+
+      saveToLocalStorage(data);
+      sendLog('form_sent', { email: data.email });
+
+      try {
+        const res = await fetch('/api/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        const result = await res.json();
+        if (!res.ok) {
+          showMessage('error', (result.errors || [result.message]).join(' '));
+          return;
+        }
+
+        showMessage('success', result.message);
+        sendLog('form_submit_success', { email: data.email });
+      } catch (err) {
+        showMessage('error', 'Сталася помилка при надсиланні форми: ' + err.message);
+      }
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+      restoreFromLocalStorage();
+      sendLog('page_view', { page: 'form' });
+    });
+  </script>
+</body>
+</html>
